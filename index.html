@@ -1937,6 +1937,15 @@ Management</textarea></div>
         };
 
         // ================================================================
+        //  GOOGLE SHEETS / APPS SCRIPT CONFIGURATION
+        // ================================================================
+        // After deploying Code.gs as a Web App, paste the /exec URL below.
+        const APP_CONFIG = {
+            APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbyWh1Na-KYTf1520LDHYBSN7CawenXq6vNaNab0X7xvLfXAZFFwf5u4K-mrbF_tYF7G/exec',
+            REQUEST_TIMEOUT_MS: 20000
+        };
+
+        // ================================================================
         //  STORAGE MANAGER
         // ================================================================
         const StorageManager = {
@@ -2040,18 +2049,25 @@ Management</textarea></div>
         }
 
         function loadDealers() {
-            const stored = StorageManager.getDealers();
-            if (stored && Object.keys(stored).length > 0) {
-                dealerData = stored;
-            } else {
-                dealerData = JSON.parse(JSON.stringify(DEFAULT_DEALERS));
-                StorageManager.saveDealers(dealerData);
-            }
             return dealerData;
         }
 
-        function saveDealers() {
-            StorageManager.saveDealers(dealerData);
+        async function loadDealersFromSheet() {
+            const result = await SheetAPI.fetchFromSheet('getDealers');
+            dealerData = result.data || {};
+            populateDealerDropdowns();
+            return dealerData;
+        }
+
+        async function saveDealers() {
+            try {
+                const result = await SheetAPI.fetchFromSheet('saveDealers', { dealers: dealerData });
+                if (result.data) dealerData = result.data;
+                return result;
+            } catch (err) {
+                showToast(err.message || 'Failed to save dealers.', 'error');
+                return { success: false, error: err.message };
+            }
         }
 
         function loadDocs(type) {
@@ -2137,45 +2153,40 @@ Management</textarea></div>
         }
 
         // ================================================================
-        //  SHEET API (localStorage only)
+        //  SHEET API - GOOGLE APPS SCRIPT BACKEND
         // ================================================================
         const SheetAPI = {
-            isConfigured() { return true; },
-
-            async fetchFromSheet(action, payload = {}) {
-                switch (action) {
-                    case 'getUsers':
-                        return { success: true, data: loadUsers() };
-                    case 'getDocs':
-                        return { success: true, data: loadDocs(payload.type) };
-                    case 'saveUser':
-                        const allUsers = loadUsers();
-                        const idx = allUsers.findIndex(u => u.id === payload.user.id);
-                        if (idx >= 0) allUsers[idx] = payload.user;
-                        else allUsers.push(payload.user);
-                        StorageManager.saveUsers(allUsers);
-                        users = allUsers;
-                        return { success: true, user: payload.user };
-                    case 'deleteUser':
-                        let currentUsers = loadUsers();
-                        currentUsers = currentUsers.filter(u => u.id !== payload.id);
-                        StorageManager.saveUsers(currentUsers);
-                        users = currentUsers;
-                        return { success: true };
-                    case 'saveDoc':
-                        const saved = saveDocToStorage(payload.doc.type, payload.doc);
-                        return { success: true, doc: saved };
-                    case 'deleteDoc':
-                        deleteDocFromStorage(payload.type, payload.id);
-                        return { success: true };
-                    default:
-                        return { error: 'Unknown action' };
-                }
+            isConfigured() {
+                return APP_CONFIG.APPS_SCRIPT_URL && !APP_CONFIG.APPS_SCRIPT_URL.includes('PASTE_YOUR_');
             },
-
-            generateId() {
-                return StorageManager.generateId();
-            }
+            getToken() { return sessionStorage.getItem('kk_sheet_token') || ''; },
+            setToken(token) { if (token) sessionStorage.setItem('kk_sheet_token', token); else sessionStorage.removeItem('kk_sheet_token'); },
+            async request(action, payload = {}) {
+                if (!this.isConfigured()) throw new Error('Google Apps Script URL is not configured.');
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), APP_CONFIG.REQUEST_TIMEOUT_MS);
+                try {
+                    const response = await fetch(APP_CONFIG.APPS_SCRIPT_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify({ action, token: this.getToken(), payload }),
+                        signal: controller.signal
+                    });
+                    const result = await response.json();
+                    if (!result.success) throw new Error(result.error || 'Server request failed.');
+                    return result;
+                } finally { clearTimeout(timer); }
+            },
+            async login(username, password, role) {
+                const result = await this.request('login', { username, password, role });
+                this.setToken(result.token);
+                return result.user;
+            },
+            async changePassword(oldPassword, newPassword) {
+                return this.request('changePassword', { oldPassword, newPassword });
+            },
+            async fetchFromSheet(action, payload = {}) { return this.request(action, payload); },
+            generateId() { return 'doc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8); }
         };
 
         // ================================================================
@@ -2183,13 +2194,13 @@ Management</textarea></div>
         // ================================================================
         async function loadUsersFromStorage() {
             const result = await SheetAPI.fetchFromSheet('getUsers');
-            users = result.data;
+            users = result.data || [];
             return users;
         }
 
         async function saveUserToSheet(user) {
             const result = await SheetAPI.fetchFromSheet('saveUser', { user });
-            if (result.success) {
+            if (result.success && result.user) {
                 const idx = users.findIndex(u => u.id === user.id);
                 if (idx >= 0) users[idx] = result.user;
                 else users.push(result.user);
@@ -2199,9 +2210,7 @@ Management</textarea></div>
 
         async function deleteUserFromSheet(id) {
             const result = await SheetAPI.fetchFromSheet('deleteUser', { id });
-            if (result.success) {
-                users = users.filter(u => u.id !== id);
-            }
+            if (result.success) users = users.filter(u => u.id !== id);
             return result;
         }
 
@@ -2215,10 +2224,7 @@ Management</textarea></div>
 
         async function saveDocToSheet(doc) {
             const result = await SheetAPI.fetchFromSheet('saveDoc', { doc });
-            if (result.success) {
-                return result.doc;
-            }
-            return null;
+            return result.success ? result.doc : null;
         }
 
         async function deleteDocFromSheet(type, id) {
@@ -2410,15 +2416,21 @@ Management</textarea></div>
             const password = loginPassword.value.trim();
             const role = loginRole.value;
             if (!username || !password) { loginError.textContent = 'Please enter username and password.'; return; }
-
-            await loadUsersFromStorage();
-            loadDealers();
-            const user = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.password ===
-                password && u.role === role);
-            if (!user) { loginError.textContent = 'Invalid credentials or role mismatch.'; return; }
-            loginError.textContent = '';
-            currentUser = user;
-            enterDashboard();
+            if (!SheetAPI.isConfigured()) { loginError.textContent = 'Backend URL is not configured. Open the HTML and set APP_CONFIG.APPS_SCRIPT_URL.'; return; }
+            const btn = document.getElementById('loginBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing in...';
+            try {
+                currentUser = await SheetAPI.login(username, password, role);
+                loginError.textContent = '';
+                try { await loadDealersFromSheet(); } catch (_) {}
+                enterDashboard();
+            } catch (err) {
+                loginError.textContent = err.message || 'Invalid credentials or role mismatch.';
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-arrow-right-to-bracket"></i> Sign In';
+            }
         }
 
         document.getElementById('loginBtn').addEventListener('click', attemptLogin);
@@ -2440,6 +2452,8 @@ Management</textarea></div>
             updateDashboardStats();
 
             if (currentUser.role === 'admin') { navigateTo('dashboardPage'); } else { navigateTo('gstPage'); }
+
+            loadDealersFromSheet().catch(() => {});
 
             const savedStamp = localStorage.getItem('customStamp');
             if (savedStamp) { stampDataURL = savedStamp;
@@ -2473,11 +2487,13 @@ Management</textarea></div>
                 loadSavedDocs('do');
             }, 500);
 
-            showToast('✅ Welcome! Data is stored locally in your browser.', 'success');
+            showToast('✅ Welcome! Connected to Google Sheets.', 'success');
         }
 
         function logout() {
             currentUser = null;
+            SheetAPI.setToken('');
+            users = []; dealerData = {};
             document.getElementById('dashboard').style.display = 'none';
             document.getElementById('loginPage').style.display = 'flex';
             document.getElementById('loginPassword').value = '';
@@ -2527,13 +2543,13 @@ Management</textarea></div>
                 const confirm = document.getElementById('confirmPass').value;
                 if (!old || !newP || !confirm) { alert('Please fill all fields.'); return; }
                 if (newP !== confirm) { alert('New passwords do not match.'); return; }
-                const user = users.find(u => u.id === currentUser.id);
-                if (!user || user.password !== old) { alert('Current password is incorrect.'); return; }
-                user.password = newP;
-                await saveUserToSheet(user);
-                currentUser.password = newP;
-                alert('Password updated successfully!');
-                closeModal();
+                try {
+                    await SheetAPI.changePassword(old, newP);
+                    alert('Password updated successfully!');
+                    closeModal();
+                } catch (err) {
+                    alert(err.message || 'Unable to change password.');
+                }
             };
             openModal();
         }
@@ -2792,7 +2808,7 @@ Management</textarea></div>
 
             modalConfirmBtn.textContent = isEdit ? 'Save Changes' : 'Add Dealer';
             modalConfirmBtn.className = 'btn btn-primary';
-            modalConfirmBtn.onclick = function() {
+            modalConfirmBtn.onclick = async function() {
                 const name = document.getElementById('dealerNameInput').value.trim();
                 const city = document.getElementById('dealerCityInput').value.trim();
                 const addr1 = document.getElementById('dealerAddr1Input').value.trim();
@@ -2808,7 +2824,7 @@ Management</textarea></div>
                 }
 
                 dealerData[name] = { city, addr1, addr2, addr3 };
-                saveDealers();
+                await saveDealers();
                 populateDealerDropdowns();
 
                 const palSelect = document.getElementById('palDealer');
@@ -2829,7 +2845,7 @@ Management</textarea></div>
             openDealerModal(name);
         };
 
-        window.deleteDealer = function(name) {
+        window.deleteDealer = async function(name) {
             if (currentUser?.role !== 'admin') return;
             if (!dealerData[name]) {
                 showToast('Dealer not found.', 'error');
@@ -2837,7 +2853,7 @@ Management</textarea></div>
             }
             if (confirm(`Delete dealer "${name}"? This cannot be undone.`)) {
                 delete dealerData[name];
-                saveDealers();
+                await saveDealers();
                 populateDealerDropdowns();
                 renderDealerTable();
                 showToast('🗑️ Dealer deleted successfully.', 'info');
@@ -4232,8 +4248,7 @@ Management</textarea></div>
         //  INIT
         // ================================================================
         (async function init() {
-            loadUsers();
-            loadDealers();
+            // User/dealer data is loaded from Google Sheets after secure login.
             calcGst();
             updateDateTimeDisplay();
             populateDealerDropdowns();
@@ -4241,7 +4256,7 @@ Management</textarea></div>
             setupDOListeners();
             generateDO();
 
-            showToast('📱 Data is stored locally in your browser.', 'info');
+            if (!SheetAPI.isConfigured()) showToast('⚠️ Configure APP_CONFIG.APPS_SCRIPT_URL before login.', 'error');
 
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('invDate').value = today;
