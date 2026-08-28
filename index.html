@@ -42,6 +42,9 @@
             --github-status-color: #2e7d32;
             --admin-edit-bg: #fff8e1;
             --admin-edit-border: #ffd54f;
+            --signal-green: #22c55e;
+            --signal-red: #ef4444;
+            --signal-off: #6b7280;
         }
 
         [data-theme="dark"] {
@@ -78,6 +81,9 @@
             --github-status-color: #66bb6a;
             --admin-edit-bg: #2a2a1a;
             --admin-edit-border: #665522;
+            --signal-green: #4ade80;
+            --signal-red: #f87171;
+            --signal-off: #9ca3af;
         }
 
         /* ===== RESET & BASE ===== */
@@ -131,7 +137,56 @@
             color: var(--accent-gold);
         }
 
-        /* ===== STATUS ===== */
+        /* ===== CONNECTION STATUS ===== */
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            padding: 4px 12px 4px 8px;
+            border-radius: 40px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow);
+            white-space: nowrap;
+        }
+        .connection-status .signal {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            transition: all 0.3s ease;
+            flex-shrink: 0;
+        }
+        .connection-status .signal.green {
+            background: var(--signal-green);
+            box-shadow: 0 0 12px rgba(34, 197, 94, 0.5);
+            animation: pulse-green 2s infinite;
+        }
+        .connection-status .signal.red {
+            background: var(--signal-red);
+            box-shadow: 0 0 12px rgba(239, 68, 68, 0.5);
+            animation: pulse-red 2s infinite;
+        }
+        .connection-status .signal.off {
+            background: var(--signal-off);
+        }
+        .connection-status .status-text {
+            color: var(--text-secondary);
+            font-size: 11px;
+        }
+
+        @keyframes pulse-green {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(0.9); }
+        }
+        @keyframes pulse-red {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(0.9); }
+        }
+
+        /* ===== STATUS BADGE ===== */
         .status-badge {
             display: flex;
             align-items: center;
@@ -1524,11 +1579,16 @@
                     <i class="fas fa-university" style="color:var(--accent);font-size:24px;margin-right:6px;"></i>
                     <span style="font-weight:800;font-size:20px;color:var(--text-primary);">KK<span style="color:var(--accent);">INFOTECH</span></span>
                 </div>
+                <!-- Connection Status Indicator -->
+                <div class="connection-status" id="connectionStatus">
+                    <span class="signal off" id="signalIndicator"></span>
+                    <span class="status-text" id="connectionStatusText">Connecting...</span>
+                </div>
             </div>
             <div class="right">
                 <div class="status-badge" id="storageStatus">
-                    <i class="fas fa-database"></i>
-                    <span id="storageStatusText">Local Storage</span>
+                    <i class="fas fa-server"></i>
+                    <span id="storageStatusText">Server</span>
                 </div>
                 <div class="theme-toggle" id="themeToggle" title="Toggle theme">
                     <i class="fas fa-sun" id="themeIcon"></i>
@@ -1542,6 +1602,7 @@
                         <div class="divider"></div>
                         <button class="dropdown-item" id="backupBtn"><i class="fas fa-download"></i> Backup Data</button>
                         <button class="dropdown-item" id="restoreBtn"><i class="fas fa-upload"></i> Restore Data</button>
+                        <button class="dropdown-item" id="syncBtn"><i class="fas fa-sync"></i> Sync to Server</button>
                         <div class="divider"></div>
                         <button class="dropdown-item danger" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</button>
                     </div>
@@ -1893,12 +1954,14 @@ Management</textarea></div>
 
     <script>
         // ================================================================
-        //  COMPLETE WORKING SOLUTION WITH AUTO-GENERATED MR/INVOICE NUMBERS
-        //  Only Admins can edit the number fields
+        //  CONFIGURATION - SET YOUR GOOGLE APPS SCRIPT URL HERE
         // ================================================================
+        // IMPORTANT: Replace this URL with your deployed Google Apps Script Web App URL
+        // Make sure your script is deployed with "Anyone" or "Anyone with link" access
+        const GOOGLE_APPS_SCRIPT_URL = 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL';
 
         // ================================================================
-        //  DEFAULT DATA
+        //  DEFAULT DATA (for first-time setup)
         // ================================================================
         const DEFAULT_USERS = [
             { id: 1, username: 'admin', password: 'admin123', role: 'admin', name: 'Admin User', email: 'admin@kkinfotech.com', tabs: ['dashboardPage', 'usersPage', 'gstPage', 'invoicePage', 'receiptPage', 'letterPage', 'palPage', 'doPage', 'dealersPage'] },
@@ -1937,72 +2000,86 @@ Management</textarea></div>
         };
 
         // ================================================================
-        //  GOOGLE SHEETS / APPS SCRIPT CONFIGURATION
+        //  GOOGLE SHEETS HEADER CONFIGURATION
         // ================================================================
-        // After deploying Code.gs as a Web App, paste the /exec URL below.
-        const APP_CONFIG = {
-            APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbxKDUMu7byQ9u57G4n1M--jhp1OST65MBgrotC7ElbOw6KbRNukgjZVbpSekzppsMPc/exec',
-            REQUEST_TIMEOUT_MS: 20000
+        const SHEET_HEADERS = {
+            USERS: ['id', 'username', 'password', 'role', 'name', 'email', 'tabs'],
+            DEALERS: ['name', 'city', 'addr1', 'addr2', 'addr3'],
+            INVOICES: ['id', 'type', 'title', 'data', 'createdBy', 'createdById', 'originalCreatedBy', 'originalCreatedById', 'modifiedByAdmin', 'modifiedByAdminName', 'modifiedByAdminAt', 'createdAt', 'updatedAt'],
+            RECEIPTS: ['id', 'type', 'title', 'data', 'createdBy', 'createdById', 'originalCreatedBy', 'originalCreatedById', 'modifiedByAdmin', 'modifiedByAdminName', 'modifiedByAdminAt', 'createdAt', 'updatedAt'],
+            LETTERS: ['id', 'type', 'title', 'data', 'createdBy', 'createdById', 'originalCreatedBy', 'originalCreatedById', 'modifiedByAdmin', 'modifiedByAdminName', 'modifiedByAdminAt', 'createdAt', 'updatedAt'],
+            PALS: ['id', 'type', 'title', 'data', 'createdBy', 'createdById', 'originalCreatedBy', 'originalCreatedById', 'modifiedByAdmin', 'modifiedByAdminName', 'modifiedByAdminAt', 'createdAt', 'updatedAt'],
+            DOS: ['id', 'type', 'title', 'data', 'createdBy', 'createdById', 'originalCreatedBy', 'originalCreatedById', 'modifiedByAdmin', 'modifiedByAdminName', 'modifiedByAdminAt', 'createdAt', 'updatedAt']
+        };
+
+        const SHEET_NAMES = {
+            USERS: 'Users',
+            DEALERS: 'Dealers',
+            INVOICES: 'Invoices',
+            RECEIPTS: 'Receipts',
+            LETTERS: 'Letters',
+            PALS: 'PALs',
+            DOS: 'DOs'
         };
 
         // ================================================================
-        //  STORAGE MANAGER
+        //  STORAGE MANAGER (Local Storage Fallback)
         // ================================================================
         const StorageManager = {
             _prefix: 'kkinfotech_',
 
-            getUsers() {
+            getUsersLocal() {
                 try {
                     const data = localStorage.getItem(this._prefix + 'users');
                     return data ? JSON.parse(data) : null;
                 } catch { return null; }
             },
 
-            saveUsers(users) {
+            saveUsersLocal(users) {
                 localStorage.setItem(this._prefix + 'users', JSON.stringify(users));
             },
 
-            getDealers() {
+            getDealersLocal() {
                 try {
                     const data = localStorage.getItem(this._prefix + 'dealers');
                     return data ? JSON.parse(data) : null;
                 } catch { return null; }
             },
 
-            saveDealers(dealers) {
+            saveDealersLocal(dealers) {
                 localStorage.setItem(this._prefix + 'dealers', JSON.stringify(dealers));
             },
 
-            getDocuments(type) {
+            getDocumentsLocal(type) {
                 try {
                     const data = localStorage.getItem(this._prefix + 'docs_' + type);
                     return data ? JSON.parse(data) : [];
                 } catch { return []; }
             },
 
-            saveDocuments(type, docs) {
+            saveDocumentsLocal(type, docs) {
                 localStorage.setItem(this._prefix + 'docs_' + type, JSON.stringify(docs));
             },
 
-            getAllData() {
+            getAllDataLocal() {
                 const data = {
-                    users: this.getUsers(),
-                    dealers: this.getDealers(),
+                    users: this.getUsersLocal(),
+                    dealers: this.getDealersLocal(),
                     documents: {}
                 };
                 const docTypes = ['invoice', 'receipt', 'letter', 'pal', 'do'];
                 docTypes.forEach(type => {
-                    data.documents[type] = this.getDocuments(type);
+                    data.documents[type] = this.getDocumentsLocal(type);
                 });
                 return data;
             },
 
-            restoreAllData(data) {
-                if (data.users) this.saveUsers(data.users);
-                if (data.dealers) this.saveDealers(data.dealers);
+            restoreAllDataLocal(data) {
+                if (data.users) this.saveUsersLocal(data.users);
+                if (data.dealers) this.saveDealersLocal(data.dealers);
                 if (data.documents) {
                     Object.keys(data.documents).forEach(type => {
-                        this.saveDocuments(type, data.documents[type]);
+                        this.saveDocumentsLocal(type, data.documents[type]);
                     });
                 }
             },
@@ -2013,21 +2090,296 @@ Management</textarea></div>
         };
 
         // ================================================================
+        //  SHEET API (Google Apps Script with Auto-Setup)
+        // ================================================================
+        const SheetAPI = {
+            isConfigured() {
+                return GOOGLE_APPS_SCRIPT_URL &&
+                    GOOGLE_APPS_SCRIPT_URL !== 'https://script.google.com/macros/s/AKfycbw3iSTGtgLQz5UTRHToAkan2I361eyPlkYki2mkACDEIMxe7EznB0JwjsmCd0YIv1ycnQ/exec' &&
+                    GOOGLE_APPS_SCRIPT_URL.startsWith('https://script.google.com');
+            },
+
+            async initializeSheets() {
+                if (!this.isConfigured()) {
+                    console.warn('Google Sheets not configured. Skipping initialization.');
+                    return false;
+                }
+
+                try {
+                    // First, check if we can connect to the API
+                    const testResult = await this.fetchFromSheet('testConnection');
+                    if (!testResult.success) {
+                        console.warn('Cannot connect to Google Sheets API. Will try again later.');
+                        return false;
+                    }
+
+                    // Initialize each sheet with headers
+                    const sheetTypes = ['Users', 'Dealers', 'Invoices', 'Receipts', 'Letters', 'PALs', 'DOs'];
+                    let allInitialized = true;
+
+                    for (const sheetType of sheetTypes) {
+                        const result = await this.fetchFromSheet('initializeSheet', { sheetType });
+                        if (!result.success) {
+                            console.warn(`Failed to initialize sheet: ${sheetType}`);
+                            allInitialized = false;
+                        }
+                    }
+
+                    return allInitialized;
+                } catch (error) {
+                    console.error('Error initializing sheets:', error);
+                    return false;
+                }
+            },
+
+            async fetchFromSheet(action, payload = {}) {
+                if (!this.isConfigured()) {
+                    console.warn('Google Apps Script URL not configured or invalid. Using localStorage fallback.');
+                    return this.fallbackToLocal(action, payload);
+                }
+
+                try {
+                    // For initialization actions, try multiple times with timeout
+                    let retries = 3;
+                    let lastError = null;
+
+                    while (retries > 0) {
+                        try {
+                            const controller = new AbortController();
+                            const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+                            const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+                                method: 'POST',
+                                mode: 'cors',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    action: action,
+                                    payload: payload
+                                }),
+                                signal: controller.signal
+                            });
+
+                            clearTimeout(timeoutId);
+
+                            if (!response.ok) {
+                                const text = await response.text();
+                                console.error('HTTP Error:', response.status, text);
+                                throw new Error(`HTTP ${response.status}: ${text.substring(0, 100)}`);
+                            }
+
+                            const text = await response.text();
+                            let result;
+
+                            try {
+                                result = JSON.parse(text);
+                            } catch (parseError) {
+                                console.error('JSON Parse Error. Raw response:', text.substring(0, 500));
+                                throw new Error('Invalid JSON response from server. Please check your Google Apps Script deployment.');
+                            }
+
+                            if (result && result.success === false) {
+                                throw new Error(result.error || 'Server returned an error');
+                            }
+
+                            if (result && result.success) {
+                                return { success: true, ...result };
+                            }
+
+                            if (result && (result.data !== undefined || result.user !== undefined || result.doc !== undefined)) {
+                                return { success: true, ...result };
+                            }
+
+                            throw new Error('Unexpected response format from server');
+                        } catch (error) {
+                            lastError = error;
+                            retries--;
+                            if (retries > 0) {
+                                console.log(`Retrying... (${retries} attempts left)`);
+                                await new Promise(resolve => setTimeout(resolve, 1000));
+                            }
+                        }
+                    }
+
+                    throw lastError || new Error('Failed after multiple retries');
+                } catch (error) {
+                    console.error('SheetAPI Error:', error.message);
+                    return this.fallbackToLocal(action, payload);
+                }
+            },
+
+            fallbackToLocal(action, payload) {
+                console.warn('Using localStorage fallback for action:', action);
+                switch (action) {
+                    case 'testConnection':
+                        return { success: true, message: 'Using local storage' };
+                    case 'initializeSheet':
+                        return { success: true, message: 'Sheet initialized locally' };
+                    case 'getUsers':
+                        return { success: true, data: StorageManager.getUsersLocal() || [] };
+                    case 'getDealers':
+                        return { success: true, data: StorageManager.getDealersLocal() || {} };
+                    case 'getDocs':
+                        return { success: true, data: StorageManager.getDocumentsLocal(payload.type) || [] };
+                    case 'saveUser':
+                        let users = StorageManager.getUsersLocal() || [];
+                        const idx = users.findIndex(u => u.id === payload.user.id);
+                        if (idx >= 0) users[idx] = payload.user;
+                        else users.push(payload.user);
+                        StorageManager.saveUsersLocal(users);
+                        return { success: true, user: payload.user };
+                    case 'saveDealer':
+                        let dealers = StorageManager.getDealersLocal() || {};
+                        dealers[payload.dealer.name] = {
+                            city: payload.dealer.city || '',
+                            addr1: payload.dealer.addr1 || '',
+                            addr2: payload.dealer.addr2 || '',
+                            addr3: payload.dealer.addr3 || ''
+                        };
+                        StorageManager.saveDealersLocal(dealers);
+                        return { success: true, dealer: payload.dealer };
+                    case 'deleteUser':
+                        let currentUsers = StorageManager.getUsersLocal() || [];
+                        currentUsers = currentUsers.filter(u => u.id !== payload.id);
+                        StorageManager.saveUsersLocal(currentUsers);
+                        return { success: true };
+                    case 'deleteDealer':
+                        let currentDealers = StorageManager.getDealersLocal() || {};
+                        delete currentDealers[payload.name];
+                        StorageManager.saveDealersLocal(currentDealers);
+                        return { success: true };
+                    case 'saveDoc':
+                        let docs = StorageManager.getDocumentsLocal(payload.doc.type) || [];
+                        const docIdx = docs.findIndex(d => d.id === payload.doc.id);
+                        if (docIdx >= 0) docs[docIdx] = payload.doc;
+                        else docs.push(payload.doc);
+                        StorageManager.saveDocumentsLocal(payload.doc.type, docs);
+                        return { success: true, doc: payload.doc };
+                    case 'deleteDoc':
+                        let docList = StorageManager.getDocumentsLocal(payload.type) || [];
+                        docList = docList.filter(d => d.id !== payload.id);
+                        StorageManager.saveDocumentsLocal(payload.type, docList);
+                        return { success: true };
+                    case 'getAllData':
+                        return { success: true, data: StorageManager.getAllDataLocal() };
+                    case 'restoreAllData':
+                        StorageManager.restoreAllDataLocal(payload.data);
+                        return { success: true, message: 'Data restored' };
+                    default:
+                        return { success: false, error: 'Unknown action: ' + action };
+                }
+            },
+
+            generateId() {
+                return StorageManager.generateId();
+            }
+        };
+
+        // ================================================================
         //  DATA LAYER
         // ================================================================
         let users = [];
         let dealerData = {};
         let currentUser = null;
         let stampDataURL = null;
+        let sheetsInitialized = false;
+        let connectionStatus = 'off'; // 'off', 'connecting', 'green', 'red'
 
-        function loadUsers() {
-            const stored = StorageManager.getUsers();
-            if (stored && stored.length > 0) {
-                users = stored;
+        // ================================================================
+        //  CONNECTION STATUS INDICATOR
+        // ================================================================
+        function updateConnectionStatus(status, message) {
+            const indicator = document.getElementById('signalIndicator');
+            const text = document.getElementById('connectionStatusText');
+            
+            connectionStatus = status;
+            
+            // Remove all classes
+            indicator.className = 'signal';
+            
+            if (status === 'green') {
+                indicator.classList.add('green');
+                text.textContent = message || 'Server Connected';
+                text.style.color = 'var(--signal-green)';
+            } else if (status === 'red') {
+                indicator.classList.add('red');
+                text.textContent = message || 'Server Disconnected';
+                text.style.color = 'var(--signal-red)';
+            } else if (status === 'connecting') {
+                indicator.classList.add('off');
+                text.textContent = message || 'Connecting...';
+                text.style.color = 'var(--text-muted)';
             } else {
-                users = JSON.parse(JSON.stringify(DEFAULT_USERS));
-                StorageManager.saveUsers(users);
+                indicator.classList.add('off');
+                text.textContent = message || 'Server Offline';
+                text.style.color = 'var(--text-muted)';
             }
+        }
+
+        async function initializeGoogleSheets() {
+            if (sheetsInitialized) return true;
+            
+            if (!SheetAPI.isConfigured()) {
+                console.log('Google Sheets not configured. Using local storage.');
+                updateConnectionStatus('red', 'Server Not Configured');
+                return false;
+            }
+
+            updateConnectionStatus('connecting', 'Connecting to Server...');
+
+            try {
+                const result = await SheetAPI.initializeSheets();
+                sheetsInitialized = result;
+                if (result) {
+                    console.log('Google Sheets initialized successfully');
+                    updateConnectionStatus('green', 'Server Connected ✓');
+                    showToast('✅ Server connected and initialized!', 'success');
+                } else {
+                    console.warn('Google Sheets initialization failed. Using local storage.');
+                    updateConnectionStatus('red', 'Server Connection Failed');
+                    showToast('⚠️ Server connection failed. Using local storage.', 'error');
+                }
+                return result;
+            } catch (error) {
+                console.error('Error initializing Google Sheets:', error);
+                updateConnectionStatus('red', 'Server Error');
+                return false;
+            }
+        }
+
+        async function loadUsers() {
+            // First try to initialize sheets if not done
+            if (!sheetsInitialized && SheetAPI.isConfigured()) {
+                await initializeGoogleSheets();
+            }
+
+            const result = await SheetAPI.fetchFromSheet('getUsers');
+            if (result.success && result.data && result.data.length > 0) {
+                users = result.data;
+                StorageManager.saveUsersLocal(users);
+                if (sheetsInitialized) {
+                    updateConnectionStatus('green', 'Server Connected ✓');
+                }
+            } else {
+                const stored = StorageManager.getUsersLocal();
+                if (stored && stored.length > 0) {
+                    users = stored;
+                } else {
+                    users = JSON.parse(JSON.stringify(DEFAULT_USERS));
+                    StorageManager.saveUsersLocal(users);
+                    // Try to sync to Google Sheets
+                    if (SheetAPI.isConfigured()) {
+                        for (const user of users) {
+                            await SheetAPI.fetchFromSheet('saveUser', { user });
+                        }
+                    }
+                }
+                if (!sheetsInitialized) {
+                    updateConnectionStatus('red', 'Local Storage Only');
+                }
+            }
+
             const coreTabs = ['gstPage', 'invoicePage', 'receiptPage', 'letterPage', 'palPage', 'doPage'];
             users.forEach(u => {
                 let tabs = u.tabs || [];
@@ -2044,64 +2396,155 @@ Management</textarea></div>
             return users;
         }
 
-        function saveUsers() {
-            StorageManager.saveUsers(users);
+        async function saveUsers() {
+            StorageManager.saveUsersLocal(users);
+            if (SheetAPI.isConfigured() && sheetsInitialized) {
+                for (const user of users) {
+                    await SheetAPI.fetchFromSheet('saveUser', { user });
+                }
+            }
         }
 
-        function loadDealers() {
-            return dealerData;
-        }
+        async function loadDealers() {
+            if (!sheetsInitialized && SheetAPI.isConfigured()) {
+                await initializeGoogleSheets();
+            }
 
-        async function loadDealersFromSheet() {
             const result = await SheetAPI.fetchFromSheet('getDealers');
-            dealerData = result.data || {};
-            populateDealerDropdowns();
+            if (result.success && result.data && Object.keys(result.data).length > 0) {
+                dealerData = result.data;
+                StorageManager.saveDealersLocal(dealerData);
+                if (sheetsInitialized) {
+                    updateConnectionStatus('green', 'Server Connected ✓');
+                }
+            } else {
+                const stored = StorageManager.getDealersLocal();
+                if (stored && Object.keys(stored).length > 0) {
+                    dealerData = stored;
+                } else {
+                    dealerData = JSON.parse(JSON.stringify(DEFAULT_DEALERS));
+                    StorageManager.saveDealersLocal(dealerData);
+                    if (SheetAPI.isConfigured()) {
+                        for (const [name, details] of Object.entries(dealerData)) {
+                            await SheetAPI.fetchFromSheet('saveDealer', { dealer: { name, ...details } });
+                        }
+                    }
+                }
+                if (!sheetsInitialized) {
+                    updateConnectionStatus('red', 'Local Storage Only');
+                }
+            }
             return dealerData;
         }
 
         async function saveDealers() {
-            try {
-                const result = await SheetAPI.fetchFromSheet('saveDealers', { dealers: dealerData });
-                if (result.data) dealerData = result.data;
-                return result;
-            } catch (err) {
-                showToast(err.message || 'Failed to save dealers.', 'error');
-                return { success: false, error: err.message };
+            StorageManager.saveDealersLocal(dealerData);
+            if (SheetAPI.isConfigured() && sheetsInitialized) {
+                for (const [name, details] of Object.entries(dealerData)) {
+                    await SheetAPI.fetchFromSheet('saveDealer', { dealer: { name, ...details } });
+                }
             }
         }
 
-        function loadDocs(type) {
-            return StorageManager.getDocuments(type);
+        async function loadDocs(type) {
+            if (!sheetsInitialized && SheetAPI.isConfigured()) {
+                await initializeGoogleSheets();
+            }
+
+            const result = await SheetAPI.fetchFromSheet('getDocs', { type });
+            if (result.success) {
+                return result.data || [];
+            }
+            return StorageManager.getDocumentsLocal(type) || [];
         }
 
-        function saveDocToStorage(type, doc) {
-            let docs = StorageManager.getDocuments(type);
+        async function saveDocToStorage(type, doc) {
+            let docs = await loadDocs(type);
             const idx = docs.findIndex(d => d.id === doc.id);
             if (idx >= 0) {
                 docs[idx] = doc;
             } else {
                 docs.push(doc);
             }
-            StorageManager.saveDocuments(type, docs);
+            StorageManager.saveDocumentsLocal(type, docs);
+            if (SheetAPI.isConfigured() && sheetsInitialized) {
+                await SheetAPI.fetchFromSheet('saveDoc', { doc });
+            }
             return doc;
         }
 
-        function deleteDocFromStorage(type, id) {
-            let docs = StorageManager.getDocuments(type);
+        async function deleteDocFromStorage(type, id) {
+            let docs = await loadDocs(type);
             docs = docs.filter(d => d.id !== id);
-            StorageManager.saveDocuments(type, docs);
+            StorageManager.saveDocumentsLocal(type, docs);
+            if (SheetAPI.isConfigured() && sheetsInitialized) {
+                await SheetAPI.fetchFromSheet('deleteDoc', { type, id });
+            }
             return true;
         }
 
+        async function syncAllToSheet() {
+            if (!SheetAPI.isConfigured()) {
+                showToast('⚠️ Server URL not configured. Please set GOOGLE_APPS_SCRIPT_URL.', 'error');
+                return;
+            }
+
+            // Ensure sheets are initialized first
+            await initializeGoogleSheets();
+
+            if (!sheetsInitialized) {
+                showToast('⚠️ Cannot connect to server. Please check your configuration.', 'error');
+                return;
+            }
+
+            showToast('⏳ Syncing data to server...', 'info');
+            try {
+                // Sync users
+                for (const user of users) {
+                    await SheetAPI.fetchFromSheet('saveUser', { user });
+                }
+                // Sync dealers
+                for (const [name, details] of Object.entries(dealerData)) {
+                    await SheetAPI.fetchFromSheet('saveDealer', { dealer: { name, ...details } });
+                }
+                // Sync documents
+                const docTypes = ['invoice', 'receipt', 'letter', 'pal', 'do'];
+                for (const type of docTypes) {
+                    const docs = StorageManager.getDocumentsLocal(type);
+                    for (const doc of docs) {
+                        await SheetAPI.fetchFromSheet('saveDoc', { doc });
+                    }
+                }
+                updateConnectionStatus('green', 'Server Connected ✓');
+                showToast('✅ Data synced to server successfully!', 'success');
+            } catch (err) {
+                console.error('Sync error:', err);
+                updateConnectionStatus('red', 'Sync Failed');
+                showToast('⚠️ Failed to sync to server. Check console for details.', 'error');
+            }
+        }
+
         // ================================================================
-        //  BACKUP / RESTORE FUNCTIONS (Admin Only)
+        //  BACKUP / RESTORE FUNCTIONS
         // ================================================================
-        function exportAllData() {
+        async function exportAllData() {
             if (currentUser?.role !== 'admin') {
                 alert('Only admins can perform backup operations.');
                 return;
             }
-            const data = StorageManager.getAllData();
+
+            let data;
+            if (SheetAPI.isConfigured() && sheetsInitialized) {
+                const result = await SheetAPI.fetchFromSheet('getAllData');
+                if (result.success) {
+                    data = result.data;
+                } else {
+                    data = StorageManager.getAllDataLocal();
+                }
+            } else {
+                data = StorageManager.getAllDataLocal();
+            }
+
             const json = JSON.stringify(data, null, 2);
             const blob = new Blob([json], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
@@ -2121,11 +2564,11 @@ Management</textarea></div>
             const input = document.createElement('input');
             input.type = 'file';
             input.accept = '.json';
-            input.onchange = function(e) {
+            input.onchange = async function(e) {
                 const file = e.target.files[0];
                 if (!file) return;
                 const reader = new FileReader();
-                reader.onload = function(ev) {
+                reader.onload = async function(ev) {
                     try {
                         const data = JSON.parse(ev.target.result);
                         if (!data.users || !data.dealers || !data.documents) {
@@ -2135,9 +2578,15 @@ Management</textarea></div>
                         if (!confirm('This will overwrite ALL current data. Are you sure you want to continue?')) {
                             return;
                         }
-                        StorageManager.restoreAllData(data);
-                        loadUsers();
-                        loadDealers();
+
+                        StorageManager.restoreAllDataLocal(data);
+
+                        if (SheetAPI.isConfigured() && sheetsInitialized) {
+                            await SheetAPI.fetchFromSheet('restoreAllData', { data });
+                        }
+
+                        await loadUsers();
+                        await loadDealers();
                         renderUserTable();
                         renderDealerTable();
                         updateDashboardStats();
@@ -2150,86 +2599,6 @@ Management</textarea></div>
                 reader.readAsText(file);
             };
             input.click();
-        }
-
-        // ================================================================
-        //  SHEET API - GOOGLE APPS SCRIPT BACKEND
-        // ================================================================
-        const SheetAPI = {
-            isConfigured() {
-                return APP_CONFIG.APPS_SCRIPT_URL && !APP_CONFIG.APPS_SCRIPT_URL.includes('PASTE_YOUR_');
-            },
-            getToken() { return sessionStorage.getItem('kk_sheet_token') || ''; },
-            setToken(token) { if (token) sessionStorage.setItem('kk_sheet_token', token); else sessionStorage.removeItem('kk_sheet_token'); },
-            async request(action, payload = {}) {
-                if (!this.isConfigured()) throw new Error('Google Apps Script URL is not configured.');
-                const controller = new AbortController();
-                const timer = setTimeout(() => controller.abort(), APP_CONFIG.REQUEST_TIMEOUT_MS);
-                try {
-                    const response = await fetch(APP_CONFIG.APPS_SCRIPT_URL, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                        body: JSON.stringify({ action, token: this.getToken(), payload }),
-                        signal: controller.signal
-                    });
-                    const result = await response.json();
-                    if (!result.success) throw new Error(result.error || 'Server request failed.');
-                    return result;
-                } finally { clearTimeout(timer); }
-            },
-            async login(username, password, role) {
-                const result = await this.request('login', { username, password, role });
-                this.setToken(result.token);
-                return result.user;
-            },
-            async changePassword(oldPassword, newPassword) {
-                return this.request('changePassword', { oldPassword, newPassword });
-            },
-            async fetchFromSheet(action, payload = {}) { return this.request(action, payload); },
-            generateId() { return 'doc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8); }
-        };
-
-        // ================================================================
-        //  USER CRUD
-        // ================================================================
-        async function loadUsersFromStorage() {
-            const result = await SheetAPI.fetchFromSheet('getUsers');
-            users = result.data || [];
-            return users;
-        }
-
-        async function saveUserToSheet(user) {
-            const result = await SheetAPI.fetchFromSheet('saveUser', { user });
-            if (result.success && result.user) {
-                const idx = users.findIndex(u => u.id === user.id);
-                if (idx >= 0) users[idx] = result.user;
-                else users.push(result.user);
-            }
-            return result;
-        }
-
-        async function deleteUserFromSheet(id) {
-            const result = await SheetAPI.fetchFromSheet('deleteUser', { id });
-            if (result.success) users = users.filter(u => u.id !== id);
-            return result;
-        }
-
-        // ================================================================
-        //  DOCUMENT CRUD
-        // ================================================================
-        async function loadDocsFromStorage(type) {
-            const result = await SheetAPI.fetchFromSheet('getDocs', { type });
-            return result.data || [];
-        }
-
-        async function saveDocToSheet(doc) {
-            const result = await SheetAPI.fetchFromSheet('saveDoc', { doc });
-            return result.success ? result.doc : null;
-        }
-
-        async function deleteDocFromSheet(type, id) {
-            const result = await SheetAPI.fetchFromSheet('deleteDoc', { type, id });
-            return result.success;
         }
 
         // ================================================================
@@ -2334,18 +2703,14 @@ Management</textarea></div>
         // ================================================================
         function applyTabPermissions() {
             if (!currentUser) return;
-            const userTabs = currentUser.tabs || ['gstPage', 'invoicePage', 'receiptPage', 'letterPage', 'palPage',
-                'doPage'
+            const userTabs = currentUser.tabs || ['gstPage', 'invoicePage', 'receiptPage', 'letterPage', 'palPage', 'doPage'
             ];
 
             navItems.forEach(item => {
                 const page = item.dataset.page;
-                if (page === 'dashboardPage') { item.classList.toggle('hidden-nav', currentUser.role !==
-                    'admin'); return; }
-                if (page === 'usersPage') { item.classList.toggle('hidden-nav', currentUser.role !==
-                    'admin'); return; }
-                if (page === 'dealersPage') { item.classList.toggle('hidden-nav', currentUser.role !==
-                    'admin'); return; }
+                if (page === 'dashboardPage') { item.classList.toggle('hidden-nav', currentUser.role !== 'admin'); return; }
+                if (page === 'usersPage') { item.classList.toggle('hidden-nav', currentUser.role !== 'admin'); return; }
+                if (page === 'dealersPage') { item.classList.toggle('hidden-nav', currentUser.role !== 'admin'); return; }
                 item.classList.toggle('hidden-nav', !userTabs.includes(page));
             });
 
@@ -2357,7 +2722,7 @@ Management</textarea></div>
         }
 
         // ================================================================
-        //  NUMBER FIELD PERMISSIONS (Admin only edit)
+        //  NUMBER FIELD PERMISSIONS
         // ================================================================
         function updateNumberFieldPermissions() {
             const isAdmin = currentUser?.role === 'admin';
@@ -2368,7 +2733,6 @@ Management</textarea></div>
             const invHint = document.getElementById('invNumberHint');
             const mrHint = document.getElementById('mrNumberHint');
 
-            // Invoice Number
             if (invNumber) {
                 if (isAdmin) {
                     invNumber.className = 'admin-editable';
@@ -2385,7 +2749,6 @@ Management</textarea></div>
                 }
             }
 
-            // Receipt Number
             if (receiptNumber) {
                 if (isAdmin) {
                     receiptNumber.className = 'admin-editable';
@@ -2404,6 +2767,23 @@ Management</textarea></div>
         }
 
         // ================================================================
+        //  UPDATE STATUS INDICATOR
+        // ================================================================
+        function updateStorageStatus() {
+            const statusEl = document.getElementById('storageStatusText');
+            if (SheetAPI.isConfigured() && sheetsInitialized) {
+                statusEl.textContent = 'Server ✓';
+                document.getElementById('storageStatus').className = 'status-badge';
+            } else if (SheetAPI.isConfigured() && !sheetsInitialized) {
+                statusEl.textContent = 'Connecting...';
+                document.getElementById('storageStatus').className = 'status-badge';
+            } else {
+                statusEl.textContent = 'Local';
+                document.getElementById('storageStatus').className = 'status-badge error';
+            }
+        }
+
+        // ================================================================
         //  LOGIN / LOGOUT
         // ================================================================
         const loginUsername = document.getElementById('loginUsername');
@@ -2416,20 +2796,25 @@ Management</textarea></div>
             const password = loginPassword.value.trim();
             const role = loginRole.value;
             if (!username || !password) { loginError.textContent = 'Please enter username and password.'; return; }
-            if (!SheetAPI.isConfigured()) { loginError.textContent = 'Backend URL is not configured. Open the HTML and set APP_CONFIG.APPS_SCRIPT_URL.'; return; }
-            const btn = document.getElementById('loginBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing in...';
+
             try {
-                currentUser = await SheetAPI.login(username, password, role);
+                // Initialize sheets first
+                if (SheetAPI.isConfigured()) {
+                    await initializeGoogleSheets();
+                }
+                
+                await loadUsers();
+                await loadDealers();
+                updateStorageStatus();
+
+                const user = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.password === password && u.role === role);
+                if (!user) { loginError.textContent = 'Invalid credentials or role mismatch.'; return; }
                 loginError.textContent = '';
-                try { await loadDealersFromSheet(); } catch (_) {}
+                currentUser = user;
                 enterDashboard();
             } catch (err) {
-                loginError.textContent = err.message || 'Invalid credentials or role mismatch.';
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-arrow-right-to-bracket"></i> Sign In';
+                loginError.textContent = 'Login error: ' + err.message;
+                console.error('Login error:', err);
             }
         }
 
@@ -2452,8 +2837,6 @@ Management</textarea></div>
             updateDashboardStats();
 
             if (currentUser.role === 'admin') { navigateTo('dashboardPage'); } else { navigateTo('gstPage'); }
-
-            loadDealersFromSheet().catch(() => {});
 
             const savedStamp = localStorage.getItem('customStamp');
             if (savedStamp) { stampDataURL = savedStamp;
@@ -2487,13 +2870,22 @@ Management</textarea></div>
                 loadSavedDocs('do');
             }, 500);
 
-            showToast('✅ Welcome! Connected to Google Sheets.', 'success');
+            let statusMsg = '';
+            if (sheetsInitialized) {
+                statusMsg = 'Server is connected and initialized. Data will sync automatically.';
+                updateConnectionStatus('green', 'Server Connected ✓');
+            } else if (SheetAPI.isConfigured() && !sheetsInitialized) {
+                statusMsg = 'Server is configured but not connected. Please check your configuration.';
+                updateConnectionStatus('red', 'Server Connection Failed');
+            } else {
+                statusMsg = 'Using Local Storage. Configure server URL for cloud sync.';
+                updateConnectionStatus('red', 'Local Storage Only');
+            }
+            showToast('✅ Welcome! ' + statusMsg, sheetsInitialized ? 'success' : 'info');
         }
 
         function logout() {
             currentUser = null;
-            SheetAPI.setToken('');
-            users = []; dealerData = {};
             document.getElementById('dashboard').style.display = 'none';
             document.getElementById('loginPage').style.display = 'flex';
             document.getElementById('loginPassword').value = '';
@@ -2504,7 +2896,7 @@ Management</textarea></div>
         document.getElementById('logoutBtn').addEventListener('click', logout);
 
         // ================================================================
-        //  BACKUP / RESTORE BUTTONS (Admin Only)
+        //  BACKUP / RESTORE / SYNC BUTTONS
         // ================================================================
         document.getElementById('backupBtn').addEventListener('click', () => {
             document.getElementById('profileDropdown').classList.remove('open');
@@ -2514,6 +2906,11 @@ Management</textarea></div>
         document.getElementById('restoreBtn').addEventListener('click', () => {
             document.getElementById('profileDropdown').classList.remove('open');
             importAllData();
+        });
+
+        document.getElementById('syncBtn').addEventListener('click', () => {
+            document.getElementById('profileDropdown').classList.remove('open');
+            syncAllToSheet();
         });
 
         // ================================================================
@@ -2543,13 +2940,13 @@ Management</textarea></div>
                 const confirm = document.getElementById('confirmPass').value;
                 if (!old || !newP || !confirm) { alert('Please fill all fields.'); return; }
                 if (newP !== confirm) { alert('New passwords do not match.'); return; }
-                try {
-                    await SheetAPI.changePassword(old, newP);
-                    alert('Password updated successfully!');
-                    closeModal();
-                } catch (err) {
-                    alert(err.message || 'Unable to change password.');
-                }
+                const user = users.find(u => u.id === currentUser.id);
+                if (!user || user.password !== old) { alert('Current password is incorrect.'); return; }
+                user.password = newP;
+                await saveUsers();
+                currentUser.password = newP;
+                alert('Password updated successfully!');
+                closeModal();
             };
             openModal();
         }
@@ -2579,7 +2976,7 @@ Management</textarea></div>
                     `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);">Admin access required.</td></tr>`;
                 return;
             }
-            await loadUsersFromStorage();
+            await loadUsers();
             let html = '';
             const tabLabels = { dashboardPage: 'Dashboard', gstPage: 'GST', invoicePage: 'Invoice', receiptPage: 'Receipt',
                 letterPage: 'Letter', palPage: 'PAL', doPage: 'DO', dealersPage: 'Dealers' };
@@ -2625,7 +3022,8 @@ Management</textarea></div>
                 ] : ['gstPage', 'invoicePage', 'receiptPage', 'letterPage', 'palPage', 'doPage'];
                 const newUser = { id: Date.now(), username, password, role, name, email: email || '',
                     tabs: newUserTabs };
-                await saveUserToSheet(newUser);
+                users.push(newUser);
+                await saveUsers();
                 renderUserTable();
                 updateDashboardStats();
                 closeModal();
@@ -2657,7 +3055,7 @@ Management</textarea></div>
                 if (role === 'admin' && !u.tabs.includes('dealersPage')) u.tabs.push('dealersPage');
                 if (role !== 'admin') u.tabs = u.tabs.filter(t => t !== 'dashboardPage' && t !== 'usersPage' && t !== 'dealersPage');
                 coreTabs.forEach(t => { if (!u.tabs.includes(t)) u.tabs.push(t); });
-                await saveUserToSheet(u);
+                await saveUsers();
                 renderUserTable();
                 updateDashboardStats();
                 closeModal();
@@ -2673,7 +3071,8 @@ Management</textarea></div>
             if (u.role === 'admin' && users.filter(x => x.role === 'admin').length === 1) { alert(
                     'Cannot delete the only admin user.'); return; }
             if (confirm(`Delete user "${u.name}"? This cannot be undone.`)) {
-                await deleteUserFromSheet(id);
+                users = users.filter(x => x.id !== id);
+                await saveUsers();
                 renderUserTable();
                 updateDashboardStats();
             }
@@ -2686,7 +3085,7 @@ Management</textarea></div>
             const newPass = prompt(`Reset password for ${u.name}. Enter new password:`, 'pass123');
             if (newPass !== null && newPass.trim().length > 0) {
                 u.password = newPass.trim();
-                await saveUserToSheet(u);
+                await saveUsers();
                 alert(`Password for "${u.name}" has been reset.`);
                 renderUserTable();
             }
@@ -2720,7 +3119,7 @@ Management</textarea></div>
                     if (!selected.includes('dealersPage')) selected.push('dealersPage');
                 }
                 u.tabs = selected;
-                await saveUserToSheet(u);
+                await saveUsers();
                 if (currentUser.id === u.id) { currentUser.tabs = selected;
                     applyTabPermissions(); }
                 renderUserTable();
@@ -2731,11 +3130,12 @@ Management</textarea></div>
         };
 
         // ================================================================
-        //  DEALER MANAGEMENT (FIXED)
+        //  DEALER MANAGEMENT
         // ================================================================
         function escapeHtml(s) {
             if (!s) return '';
-            return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;',
+                "'": '&#39;' }[c]));
         }
 
         function renderDealerTable() {
@@ -3704,7 +4104,7 @@ Management</textarea></div>
             const editingSameType = window._editingDoc && window._editingDoc.type === type;
 
             if (isNumberedDoc) {
-                let existing = await loadDocsFromStorage(type);
+                let existing = await loadDocs(type);
                 const originalNumber = editingSameType ? (window._editingDoc.doc?.data?.number || '') : '';
                 let requestedNumber = String(data.number || '').trim();
 
@@ -3762,7 +4162,7 @@ Management</textarea></div>
                 updatedAt: new Date().toISOString()
             };
 
-            const saved = await saveDocToSheet(doc);
+            const saved = await saveDocToStorage(type, doc);
             if (saved) {
                 window._editingDoc = null;
                 updateNumberFieldPermissions();
@@ -3790,7 +4190,7 @@ Management</textarea></div>
                 `<div style="text-align:center;padding:16px;color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Loading...</div>`;
 
             try {
-                let docs = await loadDocsFromStorage(type);
+                let docs = await loadDocs(type);
                 if (currentUser && currentUser.role !== 'admin') {
                     docs = docs.filter(d => d.createdBy === currentUser.username);
                 }
@@ -3894,7 +4294,7 @@ Management</textarea></div>
         // ================================================================
         window.editSavedDoc = async function(type, id) {
             try {
-                let docs = await loadDocsFromStorage(type);
+                let docs = await loadDocs(type);
                 if (currentUser && currentUser.role !== 'admin') {
                     docs = docs.filter(d => d.createdBy === currentUser.username);
                 }
@@ -3950,14 +4350,14 @@ Management</textarea></div>
 
         window.deleteSavedDoc = async function(type, id) {
             try {
-                let docs = await loadDocsFromStorage(type);
+                let docs = await loadDocs(type);
                 if (currentUser && currentUser.role !== 'admin') {
                     docs = docs.filter(d => d.createdBy === currentUser.username);
                 }
                 const doc = docs.find(d => d.id == id);
                 if (!doc) { showToast('Document not found or you do not have permission.', 'error'); return; }
                 if (!confirm(`Delete this ${type}? This action cannot be undone.`)) return;
-                await deleteDocFromSheet(type, id);
+                await deleteDocFromStorage(type, id);
                 await loadSavedDocs(type);
                 showToast(`${type} deleted successfully.`, 'success');
             } catch (err) {
@@ -4248,7 +4648,17 @@ Management</textarea></div>
         //  INIT
         // ================================================================
         (async function init() {
-            // User/dealer data is loaded from Google Sheets after secure login.
+            // Initialize connection status
+            updateConnectionStatus('connecting', 'Initializing...');
+            
+            // Initialize Google Sheets first
+            if (SheetAPI.isConfigured()) {
+                await initializeGoogleSheets();
+            }
+            
+            await loadUsers();
+            await loadDealers();
+            updateStorageStatus();
             calcGst();
             updateDateTimeDisplay();
             populateDealerDropdowns();
@@ -4256,7 +4666,18 @@ Management</textarea></div>
             setupDOListeners();
             generateDO();
 
-            if (!SheetAPI.isConfigured()) showToast('⚠️ Configure APP_CONFIG.APPS_SCRIPT_URL before login.', 'error');
+            let statusMsg = '';
+            if (sheetsInitialized) {
+                statusMsg = 'Server connected and initialized. Data will sync automatically.';
+                updateConnectionStatus('green', 'Server Connected ✓');
+            } else if (SheetAPI.isConfigured() && !sheetsInitialized) {
+                statusMsg = '⚠️ Server connection failed. Using Local Storage.';
+                updateConnectionStatus('red', 'Server Connection Failed');
+            } else {
+                statusMsg = '📱 Using Local Storage. Configure server URL for cloud sync.';
+                updateConnectionStatus('red', 'Local Storage Only');
+            }
+            showToast('📱 ' + statusMsg, sheetsInitialized ? 'success' : 'info');
 
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('invDate').value = today;
@@ -4310,14 +4731,20 @@ Management</textarea></div>
         window.resetUserPassword = resetUserPassword;
         window.manageUserTabs = manageUserTabs;
         window.loadUsers = loadUsers;
-        window.saveUserToSheet = saveUserToSheet;
-        window.deleteUserFromSheet = deleteUserFromSheet;
+        window.loadDealers = loadDealers;
+        window.saveUsers = saveUsers;
+        window.saveDealers = saveDealers;
         window.loadDocs = loadDocs;
-        window.saveDocToSheet = saveDocToSheet;
-        window.deleteDocFromSheet = deleteDocFromSheet;
+        window.saveDocToStorage = saveDocToStorage;
+        window.deleteDocFromStorage = deleteDocFromStorage;
         window.SheetAPI = SheetAPI;
+        window.StorageManager = StorageManager;
         window.exportAllData = exportAllData;
         window.importAllData = importAllData;
+        window.syncAllToSheet = syncAllToSheet;
+        window.initializeGoogleSheets = initializeGoogleSheets;
+        window.updateConnectionStatus = updateConnectionStatus;
+        window.GOOGLE_APPS_SCRIPT_URL = GOOGLE_APPS_SCRIPT_URL;
     </script>
 
 </body>
