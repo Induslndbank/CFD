@@ -1958,7 +1958,7 @@ Management</textarea></div>
         // ================================================================
         // IMPORTANT: Replace this URL with your deployed Google Apps Script Web App URL
         // Make sure your script is deployed with "Anyone" or "Anyone with link" access
-        const GOOGLE_APPS_SCRIPT_URL = 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL';
+        const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw3iSTGtgLQz5UTRHToAkan2I361eyPlkYki2mkACDEIMxe7EznB0JwjsmCd0YIv1ycnQ/exec';
 
         // ================================================================
         //  DEFAULT DATA (for first-time setup)
@@ -2095,7 +2095,7 @@ Management</textarea></div>
         const SheetAPI = {
             isConfigured() {
                 return GOOGLE_APPS_SCRIPT_URL &&
-                    GOOGLE_APPS_SCRIPT_URL !== 'https://script.google.com/macros/s/AKfycbw3iSTGtgLQz5UTRHToAkan2I361eyPlkYki2mkACDEIMxe7EznB0JwjsmCd0YIv1ycnQ/exec' &&
+                    GOOGLE_APPS_SCRIPT_URL !== 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL' &&
                     GOOGLE_APPS_SCRIPT_URL.startsWith('https://script.google.com');
             },
 
