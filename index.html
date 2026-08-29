@@ -178,12 +178,26 @@
         }
 
         @keyframes pulse-green {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.7; transform: scale(0.9); }
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 0.7;
+                transform: scale(0.9);
+            }
         }
         @keyframes pulse-red {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.7; transform: scale(0.9); }
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 0.7;
+                transform: scale(0.9);
+            }
         }
 
         /* ===== STATUS BADGE ===== */
@@ -1958,7 +1972,7 @@ Management</textarea></div>
         // ================================================================
         // IMPORTANT: Replace this URL with your deployed Google Apps Script Web App URL
         // Make sure your script is deployed with "Anyone" or "Anyone with link" access
-        const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx6dqGv6p2nuPKQSqglN7CpmNmAyX2uvsBmVL4iUK_ejg3qSO1QFx6zspYVnzPMb-c/exec';
+        const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwEJCwbVPBa3ihBLfRGuQGvbSnj0aQCXX6YVbyYwZtXNS9fb4llJ5iP7ua5RnCOgfaUWw/exec';
 
         // ================================================================
         //  DEFAULT DATA (for first-time setup)
@@ -2214,10 +2228,10 @@ Management</textarea></div>
         function updateConnectionStatus(status, message) {
             const indicator = document.getElementById('signalIndicator');
             const text = document.getElementById('connectionStatusText');
-            
+
             // Remove all classes
             indicator.className = 'signal';
-            
+
             if (status === 'green') {
                 indicator.classList.add('green');
                 text.textContent = message || 'Server Connected';
@@ -2239,7 +2253,7 @@ Management</textarea></div>
 
         async function initializeGoogleSheets() {
             if (sheetsInitialized) return true;
-            
+
             if (!SheetAPI.isConfigured()) {
                 console.log('Google Sheets not configured. Using local storage.');
                 updateConnectionStatus('red', 'Server Not Configured');
@@ -2747,7 +2761,7 @@ Management</textarea></div>
                 if (SheetAPI.isConfigured()) {
                     await initializeGoogleSheets();
                 }
-                
+
                 await loadUsers();
                 await loadDealers();
                 updateStorageStatus();
@@ -4595,12 +4609,12 @@ Management</textarea></div>
         (async function init() {
             // Initialize connection status
             updateConnectionStatus('connecting', 'Initializing...');
-            
+
             // Initialize Google Sheets first
             if (SheetAPI.isConfigured()) {
                 await initializeGoogleSheets();
             }
-            
+
             await loadUsers();
             await loadDealers();
             updateStorageStatus();
