@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>KK INFOTECH </title>
+    <title>KK INFOTECH</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
     <style>
@@ -516,6 +516,13 @@
             height: 1px;
             background: var(--border-color);
             margin: 6px 16px;
+        }
+        /* Admin-only items hidden by default */
+        .profile-dropdown .admin-only {
+            display: none;
+        }
+        .profile-dropdown .admin-only.visible {
+            display: flex;
         }
 
         .main-layout {
@@ -1601,6 +1608,11 @@
                 </div>
             </div>
             <div class="right">
+                <!-- Date/Time in Header -->
+                <div class="datetime" id="headerDateTime" style="font-size:13px;color:var(--text-muted);background:var(--bg-card);padding:4px 16px;border-radius:40px;border:1px solid var(--border-color);display:flex;align-items:center;gap:6px;white-space:nowrap;">
+                    <i class="fas fa-calendar-day"></i>
+                    <span id="headerDateTimeText">Loading...</span>
+                </div>
                 <div class="status-badge" id="storageStatus">
                     <i class="fas fa-server"></i>
                     <span id="storageStatusText">Server</span>
@@ -1615,9 +1627,9 @@
                     <div class="profile-dropdown" id="profileDropdown">
                         <button class="dropdown-item" id="changePassBtn"><i class="fas fa-key"></i> Change Password</button>
                         <div class="divider"></div>
-                        <button class="dropdown-item" id="backupBtn"><i class="fas fa-download"></i> Backup Data</button>
-                        <button class="dropdown-item" id="restoreBtn"><i class="fas fa-upload"></i> Restore Data</button>
-                        <button class="dropdown-item" id="syncBtn"><i class="fas fa-sync"></i> Sync to Server</button>
+                        <button class="dropdown-item admin-only" id="backupBtn"><i class="fas fa-download"></i> Backup Data</button>
+                        <button class="dropdown-item admin-only" id="restoreBtn"><i class="fas fa-upload"></i> Restore Data</button>
+                        <button class="dropdown-item admin-only" id="syncBtn"><i class="fas fa-sync"></i> Sync to Server</button>
                         <div class="divider"></div>
                         <button class="dropdown-item danger" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</button>
                     </div>
@@ -2261,6 +2273,24 @@ Management</textarea></div>
             }
         }
 
+        // ================================================================
+        //  DATE/TIME DISPLAY FUNCTION (shared)
+        // ================================================================
+        function updateDateTimeDisplay() {
+            const now = new Date();
+            const opts = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit',
+                minute: '2-digit', second: '2-digit', hour12: true };
+            const str = now.toLocaleString('en-IN', opts);
+
+            // Update login page date/time
+            const loginEl = document.getElementById('loginDateTimeText');
+            if (loginEl) loginEl.textContent = str;
+
+            // Update header date/time (if logged in)
+            const headerEl = document.getElementById('headerDateTimeText');
+            if (headerEl) headerEl.textContent = str;
+        }
+
         async function initializeGoogleSheets() {
             if (sheetsInitialized) return true;
 
@@ -2613,20 +2643,6 @@ Management</textarea></div>
         setTheme(savedTheme);
 
         // ================================================================
-        //  DATE / TIME
-        // ================================================================
-        function updateDateTimeDisplay() {
-            const now = new Date();
-            const opts = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit',
-                minute: '2-digit', second: '2-digit', hour12: true };
-            const str = now.toLocaleString('en-IN', opts);
-            const el = document.getElementById('loginDateTimeText');
-            if (el) el.textContent = str;
-        }
-        setInterval(updateDateTimeDisplay, 1000);
-        updateDateTimeDisplay();
-
-        // ================================================================
         //  NAVIGATION
         // ================================================================
         const navItems = document.querySelectorAll('.nav-item');
@@ -2811,6 +2827,14 @@ Management</textarea></div>
             updateNumberFieldPermissions();
             renderUserTable();
             updateDashboardStats();
+
+            // Show/hide admin-only dropdown items
+            const adminItems = document.querySelectorAll('.admin-only');
+            if (currentUser.role === 'admin') {
+                adminItems.forEach(el => el.classList.add('visible'));
+            } else {
+                adminItems.forEach(el => el.classList.remove('visible'));
+            }
 
             if (currentUser.role === 'admin') { navigateTo('dashboardPage'); } else { navigateTo('gstPage'); }
 
@@ -4655,6 +4679,8 @@ Management</textarea></div>
             await loadDealers();
             updateStorageStatus();
             calcGst();
+            // Start the real-time clock update
+            setInterval(updateDateTimeDisplay, 1000);
             updateDateTimeDisplay();
             populateDealerDropdowns();
             setupPALListeners();
@@ -4739,6 +4765,7 @@ Management</textarea></div>
         window.syncAllToSheet = syncAllToSheet;
         window.initializeGoogleSheets = initializeGoogleSheets;
         window.updateConnectionStatus = updateConnectionStatus;
+        window.updateDateTimeDisplay = updateDateTimeDisplay;
         window.GOOGLE_APPS_SCRIPT_URL = GOOGLE_APPS_SCRIPT_URL;
     </script>
 
