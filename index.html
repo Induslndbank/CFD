@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>KK INFOTECH</title>
+    <title>KK INFOTECH · Banking</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
     <style>
@@ -279,6 +279,21 @@
             white-space: nowrap;
         }
 
+        .dashboard-datetime {
+            font-size: 12px;
+            color: var(--text-muted);
+            background: var(--bg-card);
+            padding: 5px 12px;
+            border-radius: 40px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        .admin-only-control { display: none !important; }
+
         .login-card {
             background: var(--bg-card);
             border-radius: 24px;
@@ -516,13 +531,6 @@
             height: 1px;
             background: var(--border-color);
             margin: 6px 16px;
-        }
-        /* Admin-only items hidden by default */
-        .profile-dropdown .admin-only {
-            display: none;
-        }
-        .profile-dropdown .admin-only.visible {
-            display: flex;
         }
 
         .main-layout {
@@ -1608,10 +1616,8 @@
                 </div>
             </div>
             <div class="right">
-                <!-- Date/Time in Header -->
-                <div class="datetime" id="headerDateTime" style="font-size:13px;color:var(--text-muted);background:var(--bg-card);padding:4px 16px;border-radius:40px;border:1px solid var(--border-color);display:flex;align-items:center;gap:6px;white-space:nowrap;">
-                    <i class="fas fa-calendar-day"></i>
-                    <span id="headerDateTimeText">Loading...</span>
+                <div class="datetime dashboard-datetime" id="dashboardDateTime">
+                    <i class="fas fa-calendar-day"></i><span id="dashboardDateTimeText">Loading…</span>
                 </div>
                 <div class="status-badge" id="storageStatus">
                     <i class="fas fa-server"></i>
@@ -1627,9 +1633,9 @@
                     <div class="profile-dropdown" id="profileDropdown">
                         <button class="dropdown-item" id="changePassBtn"><i class="fas fa-key"></i> Change Password</button>
                         <div class="divider"></div>
-                        <button class="dropdown-item admin-only" id="backupBtn"><i class="fas fa-download"></i> Backup Data</button>
-                        <button class="dropdown-item admin-only" id="restoreBtn"><i class="fas fa-upload"></i> Restore Data</button>
-                        <button class="dropdown-item admin-only" id="syncBtn"><i class="fas fa-sync"></i> Sync to Server</button>
+                        <button class="dropdown-item" id="backupBtn" class="admin-only-control"><i class="fas fa-download"></i> Backup Data</button>
+                        <button class="dropdown-item" id="restoreBtn" class="admin-only-control"><i class="fas fa-upload"></i> Restore Data</button>
+                        <button class="dropdown-item" id="syncBtn" class="admin-only-control"><i class="fas fa-sync"></i> Sync to Server</button>
                         <div class="divider"></div>
                         <button class="dropdown-item danger" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</button>
                     </div>
@@ -1992,10 +1998,7 @@ Management</textarea></div>
         // ================================================================
         const DEFAULT_USERS = [
             { id: 1, username: 'admin', password: 'admin123', role: 'admin', name: 'Admin User', email: 'admin@kkinfotech.com', tabs: ['dashboardPage', 'usersPage', 'gstPage', 'invoicePage', 'receiptPage', 'letterPage', 'palPage', 'doPage', 'dealersPage'] },
-            { id: 2, username: 'Ravi', password: 'ravi123', role: 'user', name: 'Ravi Kumar Routh', email: 'ravi@example.com', tabs: ['gstPage', 'palPage', 'doPage', 'invoicePage', 'receiptPage'] },
-            { id: 3, username: 'Aloke', password: 'aloke123', role: 'user', name: 'Aloke Sutradhar', email: 'aloke@example.com', tabs: ['gstPage', 'palPage', 'doPage', 'invoicePage', 'receiptPage'] },
-            { id: 4, username: 'KK', password: 'kk123', role: 'admin', name: 'Koushik', email: 'kk@kkinfotech.com', tabs: ['dashboardPage', 'usersPage', 'gstPage', 'invoicePage', 'receiptPage', 'letterPage', 'palPage', 'doPage', 'dealersPage'] },
-            { id: 5, username: 'Aishik', password: 'aishik123', role: 'user', name: 'Aishik Mukherjee', email: 'aishik@example.com', tabs: ['gstPage', 'invoicePage', 'receiptPage', 'letterPage', 'palPage', 'doPage'] }
+
         ];
 
         const DEFAULT_DEALERS = {
@@ -2273,24 +2276,6 @@ Management</textarea></div>
             }
         }
 
-        // ================================================================
-        //  DATE/TIME DISPLAY FUNCTION (shared)
-        // ================================================================
-        function updateDateTimeDisplay() {
-            const now = new Date();
-            const opts = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit',
-                minute: '2-digit', second: '2-digit', hour12: true };
-            const str = now.toLocaleString('en-IN', opts);
-
-            // Update login page date/time
-            const loginEl = document.getElementById('loginDateTimeText');
-            if (loginEl) loginEl.textContent = str;
-
-            // Update header date/time (if logged in)
-            const headerEl = document.getElementById('headerDateTimeText');
-            if (headerEl) headerEl.textContent = str;
-        }
-
         async function initializeGoogleSheets() {
             if (sheetsInitialized) return true;
 
@@ -2311,17 +2296,15 @@ Management</textarea></div>
                     return false;
                 }
 
-                // Initialize sheets
+                // Initialize all sheets in parallel instead of seven sequential HTTP calls.
                 const sheetTypes = ['Users', 'Dealers', 'Invoices', 'Receipts', 'Letters', 'PALs', 'DOs'];
-                let allInitialized = true;
-
-                for (const sheetType of sheetTypes) {
-                    const result = await SheetAPI.fetchFromSheet('initializeSheet', { sheetType });
-                    if (!result.success) {
-                        console.warn(`Failed to initialize sheet: ${sheetType}`);
-                        allInitialized = false;
-                    }
-                }
+                const results = await Promise.all(sheetTypes.map(sheetType =>
+                    SheetAPI.fetchFromSheet('initializeSheet', { sheetType }).catch(err => ({ success: false, error: err.message }))
+                ));
+                const allInitialized = results.every(r => r && r.success);
+                results.forEach((r, i) => {
+                    if (!r || !r.success) console.warn(`Failed to initialize sheet: ${sheetTypes[i]}`, r?.error || 'Unknown error');
+                });
 
                 sheetsInitialized = allInitialized;
                 if (allInitialized) {
@@ -2352,7 +2335,14 @@ Management</textarea></div>
 
             const result = await SheetAPI.fetchFromSheet('getUsers');
             if (result.success && result.data && result.data.length > 0) {
-                users = result.data;
+                const cached = StorageManager.getUsersLocal() || [];
+                const passwordByUser = new Map(cached.map(u => [
+                    String(u.id || u.username || '').toLowerCase(), u.password || ''
+                ]));
+                users = result.data.map(u => ({
+                    ...u,
+                    password: passwordByUser.get(String(u.id || u.username || '').toLowerCase()) || ''
+                }));
                 StorageManager.saveUsersLocal(users);
                 if (sheetsInitialized) {
                     updateConnectionStatus('green', 'Server Connected ✓');
@@ -2483,6 +2473,10 @@ Management</textarea></div>
         }
 
         async function syncAllToSheet() {
+            if (currentUser?.role !== 'admin') {
+                showToast('⚠️ Only admins can sync data to server.', 'error');
+                return;
+            }
             if (!SheetAPI.isConfigured()) {
                 showToast('⚠️ Server URL not configured. Please set GOOGLE_APPS_SCRIPT_URL.', 'error');
                 return;
@@ -2643,6 +2637,22 @@ Management</textarea></div>
         setTheme(savedTheme);
 
         // ================================================================
+        //  DATE / TIME
+        // ================================================================
+        function updateDateTimeDisplay() {
+            const now = new Date();
+            const opts = { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit',
+                minute: '2-digit', second: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' };
+            const str = now.toLocaleString('en-IN', opts);
+            const loginEl = document.getElementById('loginDateTimeText');
+            const dashEl = document.getElementById('dashboardDateTimeText');
+            if (loginEl) loginEl.textContent = str;
+            if (dashEl) dashEl.textContent = str;
+        }
+        setInterval(updateDateTimeDisplay, 1000);
+        updateDateTimeDisplay();
+
+        // ================================================================
         //  NAVIGATION
         // ================================================================
         const navItems = document.querySelectorAll('.nav-item');
@@ -2690,6 +2700,12 @@ Management</textarea></div>
             if (!currentUser) return;
             const userTabs = currentUser.tabs || ['gstPage', 'invoicePage', 'receiptPage', 'letterPage', 'palPage', 'doPage'
             ];
+
+            document.querySelectorAll('.admin-only-control').forEach(el => {
+                el.classList.toggle('admin-only-control', currentUser.role !== 'admin');
+                if (currentUser.role === 'admin') el.style.display = 'flex';
+                else el.style.display = 'none';
+            });
 
             navItems.forEach(item => {
                 const page = item.dataset.page;
@@ -2777,36 +2793,102 @@ Management</textarea></div>
         const loginError = document.getElementById('loginError');
 
         async function attemptLogin() {
+            if (window._loginBusy) return;
             const username = loginUsername.value.trim();
             const password = loginPassword.value.trim();
             const role = loginRole.value;
             if (!username || !password) { loginError.textContent = 'Please enter username and password.'; return; }
 
+            window._loginBusy = true;
+            const btn = document.getElementById('loginBtn');
+            const originalBtn = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing in…';
+            loginError.textContent = '';
+
             try {
-                // Initialize sheets first
-                if (SheetAPI.isConfigured()) {
-                    await initializeGoogleSheets();
+                // LOCAL CACHE FIRST: instant login when the browser already has a valid
+                // cached account. The server is verified in the background.
+                const localUsers = StorageManager.getUsersLocal() || users || [];
+                const cached = localUsers.find(u =>
+                    String(u.username || '').toLowerCase() === username.toLowerCase() &&
+                    String(u.password || '') === password &&
+                    String(u.role || '').toLowerCase() === role.toLowerCase() &&
+                    u.active !== false
+                );
+
+                if (cached) {
+                    currentUser = { ...cached };
+                    users = localUsers;
+                    loginError.textContent = '';
+                    enterDashboard();
+                    showToast('⚡ Fast login successful. Verifying server in background…', 'info');
+
+                    // Do not make the user wait for sheet initialization or other data.
+                    if (SheetAPI.isConfigured()) {
+                        SheetAPI.fetchFromSheet('login', { username, password, role }).then(async result => {
+                            if (!result.success || !result.user) {
+                                console.warn('Background server verification failed. Keeping local session.');
+                                updateConnectionStatus('red', 'Server unavailable — Local mode');
+                                return;
+                            }
+                            currentUser = { ...currentUser, ...result.user };
+                            updateHeaderForCurrentUser();
+                            // Refresh caches without blocking the active session.
+                            if (!sheetsInitialized) {
+                                initializeGoogleSheets().catch(() => {});
+                            }
+                            Promise.all([loadUsers(), loadDealers()]).then(() => {
+                                updateStorageStatus();
+                                populateDealerDropdowns();
+                                const fresh = users.find(u => String(u.id) === String(currentUser.id) ||
+                                    String(u.username || '').toLowerCase() === String(currentUser.username || '').toLowerCase());
+                                if (fresh) currentUser = { ...currentUser, ...fresh };
+                                updateHeaderForCurrentUser();
+                            }).catch(console.warn);
+                        }).catch(err => {
+                            console.warn('Background login verification error:', err);
+                            updateConnectionStatus('red', 'Server unavailable — Local mode');
+                        });
+                    }
+                    return;
                 }
 
+                // No local cache: make only the minimum required server request.
                 const loginResult = await SheetAPI.fetchFromSheet('login', { username, password, role });
                 if (!loginResult.success || !loginResult.user) {
                     loginError.textContent = loginResult.error || 'Invalid credentials or role mismatch.';
                     return;
                 }
 
-                await loadUsers();
-                await loadDealers();
-                updateStorageStatus();
-
                 const user = loginResult.user;
-                const localUser = users.find(u => String(u.id) === String(user.id) || 
+                const localUser = users.find(u => String(u.id) === String(user.id) ||
                     String(u.username || '').toLowerCase() === String(user.username || '').toLowerCase());
                 currentUser = localUser ? { ...localUser, ...user } : user;
-                loginError.textContent = '';
+                // Cache the authenticated user for the next instant login.
+                const cacheUsers = StorageManager.getUsersLocal() || [];
+                const idx = cacheUsers.findIndex(u => String(u.id) === String(user.id));
+                if (idx >= 0) cacheUsers[idx] = { ...cacheUsers[idx], ...user, password };
+                else cacheUsers.push({ ...user, password });
+                StorageManager.saveUsersLocal(cacheUsers);
+
                 enterDashboard();
+                // Everything else happens in background.
+                Promise.all([
+                    SheetAPI.isConfigured() ? initializeGoogleSheets() : Promise.resolve(false),
+                    loadUsers(),
+                    loadDealers()
+                ]).then(() => {
+                    updateStorageStatus();
+                    populateDealerDropdowns();
+                }).catch(err => console.warn('Background data refresh:', err));
             } catch (err) {
                 loginError.textContent = 'Login error: ' + err.message;
                 console.error('Login error:', err);
+            } finally {
+                window._loginBusy = false;
+                btn.disabled = false;
+                btn.innerHTML = originalBtn;
             }
         }
 
@@ -2815,26 +2897,27 @@ Management</textarea></div>
             if (e.key === 'Enter' && document.getElementById('loginPage').style.display !== 'none') attemptLogin();
         });
 
+        function updateHeaderForCurrentUser() {
+            if (!currentUser) return;
+            const initial = String(currentUser.name || currentUser.username || 'U').charAt(0).toUpperCase();
+            const icon = document.getElementById('profileIcon');
+            if (icon) icon.textContent = initial;
+            const roleBadge = document.getElementById('roleBadge');
+            if (roleBadge) {
+                roleBadge.textContent = currentUser.role === 'admin' ? 'Admin' : 'User';
+                roleBadge.className = 'role-badge' + (currentUser.role === 'admin' ? ' admin' : '');
+            }
+            applyTabPermissions();
+            updateNumberFieldPermissions();
+            updateDateTimeDisplay();
+        }
+
         function enterDashboard() {
             document.getElementById('loginPage').style.display = 'none';
             document.getElementById('dashboard').style.display = 'flex';
-            const initial = currentUser.name.charAt(0).toUpperCase();
-            document.getElementById('profileIcon').textContent = initial;
-            const roleBadge = document.getElementById('roleBadge');
-            roleBadge.textContent = currentUser.role === 'admin' ? 'Admin' : 'User';
-            roleBadge.className = 'role-badge' + (currentUser.role === 'admin' ? ' admin' : '');
-            applyTabPermissions();
-            updateNumberFieldPermissions();
+            updateHeaderForCurrentUser();
             renderUserTable();
             updateDashboardStats();
-
-            // Show/hide admin-only dropdown items
-            const adminItems = document.querySelectorAll('.admin-only');
-            if (currentUser.role === 'admin') {
-                adminItems.forEach(el => el.classList.add('visible'));
-            } else {
-                adminItems.forEach(el => el.classList.remove('visible'));
-            }
 
             if (currentUser.role === 'admin') { navigateTo('dashboardPage'); } else { navigateTo('gstPage'); }
 
@@ -2862,13 +2945,6 @@ Management</textarea></div>
             setupDOListeners();
             generateDO();
 
-            setTimeout(() => {
-                loadSavedDocs('invoice');
-                loadSavedDocs('receipt');
-                loadSavedDocs('letter');
-                loadSavedDocs('pal');
-                loadSavedDocs('do');
-            }, 500);
 
             let statusMsg = '';
             if (sheetsInitialized) {
@@ -4667,58 +4743,69 @@ Management</textarea></div>
         //  INIT
         // ================================================================
         (async function init() {
-            // Initialize connection status
-            updateConnectionStatus('connecting', 'Initializing...');
+            // FAST START: load cached data immediately. Do not block the login screen
+            // while Google Apps Script initializes seven sheets one-by-one.
+            updateConnectionStatus('connecting', 'Ready — checking server in background...');
+            updateDateTimeDisplay();
 
-            // Initialize Google Sheets first
-            if (SheetAPI.isConfigured()) {
-                await initializeGoogleSheets();
+            const cachedUsers = StorageManager.getUsersLocal();
+            if (cachedUsers && cachedUsers.length) {
+                users = cachedUsers;
+            } else {
+                users = JSON.parse(JSON.stringify(DEFAULT_USERS));
+                StorageManager.saveUsersLocal(users);
             }
 
-            await loadUsers();
-            await loadDealers();
-            updateStorageStatus();
+            const cachedDealers = StorageManager.getDealersLocal();
+            dealerData = (cachedDealers && Object.keys(cachedDealers).length)
+                ? cachedDealers
+                : JSON.parse(JSON.stringify(DEFAULT_DEALERS));
+            StorageManager.saveDealersLocal(dealerData);
+
             calcGst();
-            // Start the real-time clock update
-            setInterval(updateDateTimeDisplay, 1000);
-            updateDateTimeDisplay();
             populateDealerDropdowns();
             setupPALListeners();
             setupDOListeners();
             generateDO();
-
-            let statusMsg = '';
-            if (sheetsInitialized) {
-                statusMsg = 'Server connected and initialized. Data will sync automatically.';
-                updateConnectionStatus('green', 'Server Connected ✓');
-            } else if (SheetAPI.isConfigured() && !sheetsInitialized) {
-                statusMsg = '⚠️ Server connection failed. Using Local Storage.';
-                updateConnectionStatus('red', 'Server Connection Failed');
-            } else {
-                statusMsg = '📱 Using Local Storage. Configure server URL for cloud sync.';
-                updateConnectionStatus('red', 'Local Storage Only');
-            }
-            showToast('📱 ' + statusMsg, sheetsInitialized ? 'success' : 'info');
 
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('invDate').value = today;
             document.getElementById('receiptDate').value = today;
             document.getElementById('palDate').value = today;
             document.getElementById('doDate').value = today;
-
             initInvoiceItems();
             initReceiptItems();
             generateInvoice();
             generateReceipt();
             generateLetter();
+            updateStorageStatus();
 
-            setTimeout(() => {
-                loadSavedDocs('invoice');
-                loadSavedDocs('receipt');
-                loadSavedDocs('letter');
-                loadSavedDocs('pal');
-                loadSavedDocs('do');
-            }, 600);
+            // Server refresh is deliberately non-blocking.
+            if (SheetAPI.isConfigured()) {
+                setTimeout(async () => {
+                    try {
+                        await initializeGoogleSheets();
+                        // Refresh user/dealer caches after connection is ready.
+                        await Promise.all([loadUsers(), loadDealers()]);
+                        updateStorageStatus();
+                        populateDealerDropdowns();
+                        if (currentUser) {
+                            const fresh = users.find(u => String(u.id) === String(currentUser.id) ||
+                                String(u.username || '').toLowerCase() === String(currentUser.username || '').toLowerCase());
+                            if (fresh) {
+                                currentUser = { ...currentUser, ...fresh };
+                                applyTabPermissions();
+                            }
+                        }
+                    } catch (err) {
+                        console.warn('Background server refresh failed:', err);
+                        updateConnectionStatus('red', 'Local mode — server unavailable');
+                        updateStorageStatus();
+                    }
+                }, 50);
+            } else {
+                updateConnectionStatus('red', 'Local Storage Only');
+            }
         })();
 
         // ================================================================
@@ -4765,7 +4852,6 @@ Management</textarea></div>
         window.syncAllToSheet = syncAllToSheet;
         window.initializeGoogleSheets = initializeGoogleSheets;
         window.updateConnectionStatus = updateConnectionStatus;
-        window.updateDateTimeDisplay = updateDateTimeDisplay;
         window.GOOGLE_APPS_SCRIPT_URL = GOOGLE_APPS_SCRIPT_URL;
     </script>
 
